@@ -1,0 +1,6 @@
+streamlit
+moomoo-api
+pandas
+numpy
+plotly
+pytz
