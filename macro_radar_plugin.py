@@ -1,5 +1,5 @@
 # 文件名: macro_radar_plugin.py
-# 作用: Tab 1 專精看板 - 13 核心標的彩色戰術 Watchlist + OpenD 官方高速日線
+# 作用: Tab 1 專精看板 - 13 核心標的彩色戰術 Watchlist + OpenD 官方高速日線 (已修復代碼與連線保護)
 
 import datetime
 import os
@@ -14,6 +14,7 @@ from moomoo import *
 tz_ny = pytz.timezone("America/New_York")
 tz_myt = pytz.timezone("Asia/Kuala_Lumpur")
 
+# 13 核心標的 (已將無效退市的 SNDK 替換為半導體龍頭 LRCX)
 TICKERS_CONFIG = {
     "NVDA": {"name": "英伟达", "weight": 3.0, "role": "AI算力总舵手"},
     "AAPL": {"name": "苹果", "weight": 3.0, "role": "消费电子/防守中枢"},
@@ -27,17 +28,17 @@ TICKERS_CONFIG = {
     "AMD": {"name": "AMD", "weight": 1.0, "role": "算力二当家"},
     "WDC": {"name": "西部数据", "weight": 1.0, "role": "存储与硬盘核心"},
     "STX": {"name": "希捷", "weight": 1.0, "role": "企业级存储"},
-    "SNDK": {"name": "闪迪", "weight": 1.0, "role": "存储情绪标的"},
+    "LRCX": {"name": "科林研发", "weight": 1.0, "role": "半导体设备核心"},
 }
 
 ALL_SYMBOLS = ["QQQ"] + list(TICKERS_CONFIG.keys())
 
-def fetch_opend_kline_safe(quote_ctx, sym, ktype=KLType.K_DAY, count=120):
+def fetch_opend_kline_safe(quote_ctx, sym, ktype=KLType.K_DAY, count=60):
     code_str = f"US.{sym}"
     try:
         ret, df_k, _ = quote_ctx.request_history_kline(
             code=code_str,
-            start=(datetime.datetime.now(tz_ny) - datetime.timedelta(days=200)).strftime("%Y-%m-%d"),
+            start=(datetime.datetime.now(tz_ny) - datetime.timedelta(days=120)).strftime("%Y-%m-%d"),
             end=datetime.datetime.now(tz_ny).strftime("%Y-%m-%d"),
             ktype=ktype,
             autype=AuType.QFQ,
@@ -56,24 +57,28 @@ def fetch_opend_kline_safe(quote_ctx, sym, ktype=KLType.K_DAY, count=120):
 @st.cache_data(ttl=60)
 def fetch_watchlist_data():
     data_daily, data_weekly = {}, {}
+    quote_ctx = None
     try:
         quote_ctx = OpenQuoteContext(host='127.0.0.1', port=11111)
         for sym in ALL_SYMBOLS:
-            df_d = fetch_opend_kline_safe(quote_ctx, sym, KLType.K_DAY, 90)
+            df_d = fetch_opend_kline_safe(quote_ctx, sym, KLType.K_DAY, 60)
             if df_d is not None and not df_d.empty:
                 data_daily[sym] = df_d
             
-            df_w = fetch_opend_kline_safe(quote_ctx, sym, KLType.K_WEEK, 40)
+            df_w = fetch_opend_kline_safe(quote_ctx, sym, KLType.K_WEEK, 30)
             if df_w is not None and not df_w.empty:
                 data_weekly[sym] = df_w
-        quote_ctx.close()
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Watchlist OpenD 連線異常: {e}")
+    finally:
+        if quote_ctx:
+            try: quote_ctx.close()
+            except: pass
 
     return data_daily, data_weekly
 
 def analyze_watchlist_rotation(data_daily, data_weekly):
-    if "QQQ" not in data_daily or data_daily["QQQ"].empty:
+    if not data_daily or "QQQ" not in data_daily or data_daily["QQQ"].empty:
         return None
 
     qqq_d = data_daily["QQQ"]
@@ -89,7 +94,7 @@ def analyze_watchlist_rotation(data_daily, data_weekly):
 
     for sym, cfg in TICKERS_CONFIG.items():
         found = False
-        if sym in data_daily and len(data_daily[sym]) >= 15:
+        if sym in data_daily and len(data_daily[sym]) >= 10:
             df_s = data_daily[sym]
             c_p = float(df_s["Close"].iloc[-1])
             p_p = float(df_s["Close"].iloc[-2]) if len(df_s) >= 2 else c_p
@@ -182,7 +187,7 @@ def analyze_watchlist_rotation(data_daily, data_weekly):
                 "buy_zone": "-", "sell_zone": "-", "pattern": "无"
             }
 
-    if "QQQ" in data_daily and len(data_daily["QQQ"]) >= 15:
+    if "QQQ" in data_daily and len(data_daily["QQQ"]) >= 10:
         q_df = data_daily["QQQ"]
         q_cp = float(q_df["Close"].iloc[-1])
         q_pwh = float(data_weekly["QQQ"]["High"].iloc[-2]) if "QQQ" in data_weekly and len(data_weekly["QQQ"]) >= 3 else q_cp * 1.03
@@ -214,7 +219,7 @@ def render_stock_zone_chart(sym, df_daily, zones):
         st.warning(f"标的 {sym} 暂无足够日线历史数据。")
         return
 
-    df = df_daily.tail(75).copy()
+    df = df_daily.tail(60).copy()
     df["MA20"] = df["Close"].rolling(20).mean()
     df["MA50"] = df["Close"].rolling(50).mean()
     df["VMA20"] = df["Volume"].rolling(20).mean()
