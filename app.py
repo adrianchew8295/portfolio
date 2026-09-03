@@ -1,9 +1,8 @@
 # 文件名: app.py
-# 作用: 癸水 · QQQ 战区座舱（50px 极简微缩 Emoji 导航轨 + 95% 宽屏主视口 + 5M 执行级大白话复盘）
+# 作用: 癸水 · QQQ 战区座舱（已彻底修复 datetime 属性命名冲突与 OpenD 直连）
 
 import calendar
 import datetime
-from datetime import timedelta
 import os
 import pandas as pd
 import pytz
@@ -125,7 +124,7 @@ now_myt = datetime.datetime.now(tz_myt)
 now_ny = datetime.datetime.now(tz_ny)
 
 df_j = load_journal()
-yesterday_d = now_myt.date() - timedelta(days=1)
+yesterday_d = now_myt.date() - datetime.timedelta(days=1)
 yesterday_myt_str = yesterday_d.strftime("%Y-%m-%d")
 has_10pm_p = (now_myt.hour >= 22 or now_myt.hour < 5)
 has_8am_report = yesterday_myt_str in df_j["Date_MYT"].astype(str).values if not df_j.empty else False
@@ -340,7 +339,7 @@ with col_main:
             if d1h_y is not None and d5m_y is not None:
                 dt_y_10pm_myt = tz_myt.localize(datetime.datetime.combine(yesterday_d, datetime.time(22, 0, 0)))
                 cutoff_y_ny = dt_y_10pm_myt.astimezone(tz_ny)
-                window_y_end_ny = cutoff_y_ny + timedelta(hours=2)
+                window_y_end_ny = cutoff_y_ny + datetime.timedelta(hours=2)
                 
                 p_y = compute_futu_13_params(d1h_y, d5m_y, cutoff_y_ny)
                 if p_y:
@@ -448,10 +447,10 @@ with col_main:
             if st.button("🛠️ 结算昨夜 22:00-24:00 账本", key="btn_settle_yest_journal_tab4_final"):
                 with st.spinner("正在核算昨夜交易..."):
                     d1h, d5m, _ = fetch_raw_data_with_retry(period_5m="5d")
-                    target_d = now_myt.date() - timedelta(days=1) if now_myt.hour < 22 else now_myt.date()
+                    target_d = now_myt.date() - datetime.timedelta(days=1) if now_myt.hour < 22 else now_myt.date()
                     dt_10pm_myt = tz_myt.localize(datetime.datetime.combine(target_d, datetime.time(22, 0, 0)))
                     cutoff_ny = dt_10pm_myt.astimezone(tz_ny)
-                    window_end_ny = cutoff_ny + timedelta(hours=2)
+                    window_end_ny = cutoff_ny + datetime.timedelta(hours=2)
                     
                     p = compute_futu_13_params(d1h, d5m, cutoff_ny)
                     if p:
@@ -472,7 +471,7 @@ with col_main:
                         for d in target_dates:
                             dt_10pm_myt = tz_myt.localize(datetime.datetime.combine(d, datetime.time(22, 0, 0)))
                             cutoff_ny = dt_10pm_myt.astimezone(tz_ny)
-                            window_end_ny = cutoff_ny + timedelta(hours=2)
+                            window_end_ny = cutoff_ny + datetime.timedelta(hours=2)
                             
                             p_day = compute_futu_13_params(d1h, d5m, cutoff_ny)
                             if p_day:
@@ -683,7 +682,7 @@ with col_main:
                     target_hist_d = datetime.datetime.strptime(active_date, "%Y-%m-%d").date()
                     dt_hist_10pm_myt = tz_myt.localize(datetime.datetime.combine(target_hist_d, datetime.time(22, 0, 0)))
                     cutoff_hist_ny = dt_hist_10pm_myt.astimezone(tz_ny)
-                    window_hist_end_ny = cutoff_hist_ny + timedelta(hours=2)
+                    window_hist_end_ny = cutoff_hist_ny + datetime.timedelta(hours=2)
                     
                     p_hist = compute_futu_13_params(d1h_hist, d5m_hist, cutoff_hist_ny)
                     trades_hist, day_5m_hist = simulate_trades_with_2b(d5m_hist, p_hist, cutoff_hist_ny, window_hist_end_ny)
